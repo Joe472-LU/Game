@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知識王大對決 - 多頁面闖關遊戲</title>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --accent: #f59e0b;
+    --bg: #0f172a;
+    --card: #1e293b;
+    --text: #f8fafc;
+  }
+  * { box-sizing: border-box; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+  .container { width: 100%; max-width: 800px; background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative; overflow: hidden; }
+  .screen { display: none; flex-direction: column; align-items: center; text-align: center; }
+  .screen.active { display: flex; }
+  h1 { font-size: 2.2rem; margin-bottom: 8px; color: var(--accent); text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+  p { color: #94a3b8; font-size: 1rem; margin-bottom: 20px; }
+  .btn { border: none; border-radius: 12px; padding: 12px 24px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.2); margin: 6px; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); transform: translateY(-2px); }
+  .btn-accent { background: var(--accent); color: #78350f; }
+  .btn-accent:hover { background: #d97706; transform: translateY(-2px); }
+  .btn-outline { background: transparent; border: 2px solid #475569; color: #cbd5e1; }
+  .btn-outline:hover { background: #334155; }
+  
+  /* 遊戲介面 */
+  .hud { display: flex; justify-content: space-between; width: 100%; font-size: 1.1rem; font-weight: bold; margin-bottom: 16px; background: #0f172a; padding: 12px 20px; border-radius: 12px; }
+  .timer-bar-container { width: 100%; height: 10px; background: #334155; border-radius: 5px; margin-bottom: 20px; overflow: hidden; }
+  .timer-bar { width: 100%; height: 100%; background: #10b981; transition: width 0.1s linear; }
+  .question-box { font-size: 1.4rem; font-weight: bold; margin-bottom: 24px; min-height: 80px; display: flex; align-items: center; justify-content: center; line-height: 1.4; }
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-bottom: 20px; }
+  .option-btn { background: #334155; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.15s; text-align: left; position: relative; }
+  .option-btn:hover:not(:disabled) { background: #475569; transform: scale(1.02); }
+  .option-btn.correct { background: #10b981 !important; color: white; }
+  .option-btn.wrong { background: #ef4444 !important; color: white; }
+  
+  /* 結算畫面 */
+  .result-title { font-size: 2.5rem; color: var(--accent); margin-bottom: 12px; }
+  .explanation-box { background: #0f172a; border-left: 4px solid var(--accent); padding: 14px; border-radius: 8px; margin: 16px 0; text-align: left; width: 100%; font-size: 0.95rem; color: #e2e8f0; }
+  
+  /* 設定畫面 */
+  textarea { width: 100%; height: 140px; background: #0f172a; border: 2px solid #334155; border-radius: 8px; color: white; padding: 10px; font-size: 0.9rem; resize: vertical; margin-bottom: 12px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 頁面 1：主選單 -->
+  <div id="screen-home" class="screen active">
+    <h1>👑 知識王大對決</h1>
+    <p>挑戰你的反應與各領域冷知識，爭奪最強頭銜！</p>
+    <div style="display:flex; flex-direction:column; width:220px; margin: 0 auto;">
+      <button class="btn btn-accent" onclick="startGame('single')">🤖 單人挑戰 AI</button>
+      <button class="btn btn-primary" onclick="startGame('double')">👥 雙人同機對戰</button>
+      <button class="btn btn-outline" onclick="switchScreen('screen-settings')">📚 自訂題庫設定</button>
+    </div>
+  </div>
+
+  <!-- 頁面 2：遊戲對戰中 -->
+  <div id="screen-game" class="screen">
+    <div class="hud">
+      <span id="hud-round">第 1 / 5 題</span>
+      <span id="hud-score">分數：0</span>
+    </div>
+    <div class="timer-bar-container"><div class="timer-bar" id="timerBar"></div></div>
+    <div class="question-box" id="questionText">載入題目中...</div>
+    <div class="options-grid" id="optionsGrid"></div>
+  </div>
+
+  <!-- 頁面 3：單題結算與解析 -->
+  <div id="screen-answer" class="screen">
+    <h2 id="ansTitle" style="font-size: 2rem; margin-bottom: 10px;">答對了！</h2>
+    <p id="ansScoreDelta" style="font-size: 1.2rem; color: #10b981; font-weight: bold;"></p>
+    <div class="explanation-box">
+      <strong>💡 知識小百科：</strong><br>
+      <span id="ansExplanation">解析載入中...</span>
+    </div>
+    <button class="btn btn-primary" onclick="nextQuestion()">下一題 ➔</button>
+  </div>
+
+  <!-- 頁面 4：最終結算 -->
+  <div id="screen-gameover" class="screen">
+    <div class="result-title">🏆 遊戲結束！</div>
+    <p id="finalScoreText" style="font-size: 1.5rem; margin-bottom: 20px;">你的最終得分：0 分</p>
+    <button class="btn btn-accent" onclick="switchScreen('screen-home')">返回主選單</button>
+  </div>
+
+  <!-- 頁面 5：自訂題庫設定 -->
+  <div id="screen-settings" class="screen">
+    <h2>📚 自訂題庫設定</h2>
+    <p style="font-size: 0.85rem;">格式：題目|選項A,選項B,選項C,選項D|正確答案代號(A/B/C/D)|解析</p>
+    <textarea id="customQuestionsInput"></textarea>
+    <div>
+      <button class="btn btn-primary" onclick="saveCustomQuestions()">儲存題庫</button>
+      <button class="btn btn-outline" onclick="switchScreen('screen-home')">返回</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 預設題庫
+  const defaultQuestions = [
+    { q: "下列哪一個行星距離太陽最近？", options: ["金星", "水星", "火星", "地球"], answer
