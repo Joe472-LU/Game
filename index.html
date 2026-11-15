@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>知識王對決 - Quiz King Battle</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: radial-gradient(circle at top, #1e1b4b, #0f172a 70%);
+            color: #f8fafc;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 遊戲舞台動態背景光暈 */
+        .bg-glow {
+            position: fixed;
+            width: 60vw;
+            height: 60vw;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: -1;
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
+        /* 按鈕立體質感與點擊回饋 */
+        .btn-3d {
+            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35);
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+        }
+
+        /* 選項動畫 */
+        @keyframes popIn {
+            0% { transform: scale(0.85); opacity: 0; }
+            70% { transform: scale(1.03); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* 錯誤震動動畫 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* 得分浮動提示 */
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(0.8); opacity: 1; }
+            100% { transform: translateY(-40px) scale(1.2); opacity: 0; }
+        }
+        .score-popup {
+            animation: floatUp 0.9s ease-out forwards;
+        }
+
+        /* 自訂捲軸 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4f46e5;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- 背景裝飾光暈 -->
+    <div class="bg-glow bg-indigo-600 -top-20 -left-20"></div>
+    <div class="bg-glow bg-fuchsia-600 bottom-0 right-0"></div>
+
+    <!-- 頂部導覽列 -->
+    <header class="w-full max-w-4xl mx-auto px-4 py-3 flex items-center justify-between z-10">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="goHome()">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-2xl shadow-lg">
+                👑
+            </div>
+            <div>
+                <h1 class="font-black text-lg sm:text-xl tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400">
+                    知識王對決
+                </h1>
+                <p class="text-[11px] text-slate-400 -mt-1">QUIZ KING BATTLE</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- 題庫管理按鈕 -->
+            <button onclick="openQuestionModal()" class="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition">
+                <span>📚</span>
+                <span class="hidden sm:inline">自訂題庫</span>
+                <span id="badge-q-count" class="bg-indigo-600 text-white text-[11px] px-1.5 py-0.5 rounded-full">0</span>
+            </button>
+            <!-- 音效開關 -->
+            <button id="btn-sound" onclick="toggleSound()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-lg transition" title="切換音效">
+                🔊
+            </button>
+        </div>
+    </header>
+
+    <!-- 主畫面容器 -->
+    <main class="flex-1 w-full max-w-4xl mx-auto px-4 py-2 flex flex-col justify-center">
+
+        <!-- 1. 首頁大廳 (Lobby Screen) -->
+        <section id="screen-lobby" class="text-center space-y-6 py-4 animate-pop">
+            <div class="space-y-2">
+                <div class="inline-block px-4 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs sm:text-sm font-bold mb-1">
+                    ⚡ 5 回合極速腦力對決 • 最後一題分數加倍！
+                </div>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight text-white drop-shadow-md">
+                    誰才是真正的<span class="text-amber-400">知識之王</span>？
+                </h2>
+                <p class="text-slate-300 text-sm sm:text-base max-w-lg mx-auto">
+                    答題越快分數越高！挑戰不同難度的電腦對手，或與好友在同一台裝置上進行雙人即時搶答對決。
+                </p>
+            </div>
+
+            <!-- 玩家名稱設定 -->
+            <div class="max-w-md mx-auto bg-slate-900/70 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-xs font-bold text-slate-400 whitespace-nowrap">玩家 1 暱稱</label>
+                    <input id="input-p1-name" type="text" maxlength="10" value="知識挑戰者" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <div id="p2-name-row" class="hidden items-center justify-between gap-3">
+                    <label class="text-xs font-bold text-slate-400 whitespace-nowrap">玩家 2 暱稱</label>
+                    <input id="input-p2-name" type="text" maxlength="10" value="挑戰者二號" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:border-pink-400">
+                </div>
+            </div>
+
+            <!-- 遊戲模式選擇卡片 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                <!-- 單人挑戰電腦 -->
+                <div class="bg-gradient-to-b from-slate-800/90 to-slate-900/90 border-2 border-indigo-500/40 hover:border-indigo-400 rounded-3xl p-5 flex flex-col justify-between shadow-2xl transition">
+                    <div class="space-y-2">
+                        <div class="text-4xl">🤖</div>
+                        <h3 class="text-xl font-black text-white">單人挑戰電腦</h3>
+                        <p class="text-xs text-slate-400">選擇 AI 對手強度，測驗你的反應與知識儲備</p>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div class="grid grid-cols-3 gap-1.5 bg-slate-950/60 p-1 rounded-xl">
+                            <button onclick="setDifficulty('easy')" id="diff-easy" class="diff-btn py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">🌱 初心者</button>
+                            <button onclick="setDifficulty('normal')" id="diff-normal" class="diff-btn py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow transition">⚔️ 知識王</button>
+                            <button onclick="setDifficulty('hard')" id="diff-hard" class="diff-btn py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">🔥 大魔王</button>
+                        </div>
+                        <button onclick="startGame('ai')" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-400 hover:to-blue-500 font-black text-base text-white btn-3d">
+                            開始配對對戰
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 雙人同機對決 -->
+                <div class="bg-gradient-to-b from-slate-800/90 to-slate-900/90 border-2 border-pink-500/40 hover:border-pink-400 rounded-3xl p-5 flex flex-col justify-between shadow-2xl transition">
+                    <div class="space-y-2">
+                        <div class="text-4xl">👥</div>
+                        <h3 class="text-xl font-black text-white">雙人同機搶答</h3>
+                        <p class="text-xs text-slate-400">支援雙人同螢幕點擊，或電腦鍵盤 <span class="text-amber-300 font-bold">1~4</span> vs <span class="text-pink-300 font-bold">7~0</span> 盲按對決！</p>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <button onclick="toggleP2Input()" class="w-full py-1.5 rounded-xl bg-slate-950/60 text-xs font-bold text-pink-300 hover:bg-slate-900 transition">
+                            ✏️ 設定玩家 2 名稱
+                        </button>
+                        <button onclick="startGame('pvp')" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 font-black text-base text-white btn-3d">
+                            開始雙人對戰
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. 對戰舞台畫面 (Battle Screen) -->
+        <section id="screen-battle" class="hidden flex-col justify-between space-y-3 sm:space-y-4 py-1">
+            
+            <!-- 頂部計分板 & 倒數計時器 -->
+            <div class="bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-3xl p-3 sm:p-4 shadow-2xl">
+                <div class="flex items-center justify-between gap-2">
+                    <!-- 玩家 1 資訊 -->
+                    <div class="flex-1 flex items-center gap-2.5">
+                        <div class="relative">
+                            <div id="p1-avatar" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl sm:text-3xl shadow-lg border-2 border-blue-300">
+                                🧑‍🎓
+                            </div>
+                            <span id="p1-combo" class="hidden absolute -bottom-2 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow">
+                                2連勝
+                            </span>
+                        </div>
+                        <div class="min-w-0">
+                            <div id="p1-display-name" class="font-bold text-xs sm:text-sm text-blue-300 truncate">玩家 1</div>
+                            <div class="relative">
+                                <div id="p1-score" class="font-black text-xl sm:text-3xl text-white tabular-nums">0</div>
+                                <div id="p1-popup-container" class="absolute top-0 left-0 pointer-events-none"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 中央回合與倒數計時圓環 -->
+                    <div class="flex flex-col items-center justify-center px-2">
+                        <div id="round-badge" class="text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-amber-400/30 mb-1">
+                            第 1 / 5 題
+                        </div>
+                        <div class="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center">
+                            <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                <path class="text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none"
+                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path id="timer-ring" class="text-amber-400 transition-all duration-100" stroke-dasharray="100, 100" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none"
+                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            </svg>
+                            <span id="timer-text" class="absolute font-black text-lg sm:text-xl text-white tabular-nums">10</span>
+                        </div>
+                    </div>
+
+                    <!-- 玩家 2 / AI 資訊 -->
+                    <div class="flex-1 flex items-center justify-end gap-2.5 text-right">
+                        <div class="min-w-0">
+                            <div id="p2-display-name" class="font-bold text-xs sm:text-sm text-pink-300 truncate">電腦對手</div>
+                            <div class="relative">
+                                <div id="p2-score" class="font-black text-xl sm:text-3xl text-white tabular-nums">0</div>
+                                <div id="p2-popup-container" class="absolute top-0 right-0 pointer-events-none"></div>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <div id="p2-avatar" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-2xl sm:text-3xl shadow-lg border-2 border-pink-300">
+                                🤖
+                            </div>
+                            <span id="p2-combo" class="hidden absolute -bottom-2 -left-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow">
+                                2連勝
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 雙方分數對比進度條 -->
+                <div class="mt-3 h-2.5 w-full bg-slate-800 rounded-full overflow-hidden flex p-0.5">
+                    <div id="bar-p1" class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-l-full transition-all duration-500" style="width: 50%"></div>
+                    <div id="bar-p2" class="h-full bg-gradient-to-l from-pink-500 to-rose-400 rounded-r-full transition-all duration-500" style="width: 50%"></div>
+                </div>
+            </div>
+
+            <!-- 題目展示卡片 -->
+            <div class="bg-slate-900/90 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 text-center shadow-2xl relative overflow-hidden">
+                <div id="double-points-banner" class="hidden absolute top-0 inset-x-0 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs py-1 tracking-widest uppercase">
+                    🔥 最終決戰回合 • 本題分數 2 倍計算！ 🔥
+                </div>
+                <div class="mt-1">
+                    <span id="question-category" class="inline-block px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold mb-3">
+                        題目分類
+                    </span>
+                    <h3 id="question-text" class="text-lg sm:text-2xl font-black text-white leading-snug min-h-[3.5rem] flex items-center justify-center">
+                        題目載入中...
+                    </h3>
+                </div>
+            </div>
+
+            <!-- 單人模式選項區 (1P vs AI) -->
+            <div id="options-single" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- 動態產生 4 個選項按鈕 -->
+            </div>
+
+            <!-- 雙人同機對戰選項區 (2P Local Split Controls) -->
+            <div id="options-pvp" class="hidden grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 玩家 1 操作區 -->
+                <div class="bg-blue-950/40 border border-blue-500/30 rounded-2xl p-3 space-y-2">
+                    <div class="flex items-center justify-between text-xs font-bold text-blue-300 px-1">
+                        <span>🔵 <span id="pvp-p1-label">玩家 1</span> 作答區</span>
+                        <span class="text-slate-400 hidden sm:inline">鍵盤: 1 / 2 / 3 / 4</span>
+                    </div>
+                    <div id="pvp-p1-buttons" class="grid grid-cols-2 gap-2"></div>
+                </div>
+                <!-- 玩家 2 操作區 -->
+                <div class="bg-pink-950/40 border border-pink-500/30 rounded-2xl p-3 space-y-2">
+                    <div class="flex items-center justify-between text-xs font-bold text-pink-300 px-1">
+                        <span>🔴 <span id="pvp-p2-label">玩家 2</span> 作答區</span>
+                        <span class="text-slate-400 hidden sm:inline">鍵盤: 7 / 8 / 9 / 0</span>
+                    </div>
+                    <div id="pvp-p2-buttons" class="grid grid-cols-2 gap-2"></div>
+                </div>
+            </div>
+
+            <!-- 知識小百科解析條 (每題結束顯示) -->
+            <div id="explanation-box" class="hidden bg-emerald-950/80 border border-emerald-500/40 rounded-2xl p-3.5 text-center animate-pop">
+                <p id="explanation-text" class="text-xs sm:text-sm text-emerald-200 font-medium"></p>
+            </div>
+        </section>
+
+        <!-- 3. 結算畫面 (Result Screen) -->
+        <section id="screen-result" class="hidden text-center space-y-6 py-4 animate-pop">
+            <div class="bg-slate-900/90 border-2 border-amber-400/40 rounded-3xl p-6 sm:p-8 max-w-xl mx-auto shadow-2xl space-y-6">
+                <div>
+                    <div id="result-trophy" class="text-6xl sm:text-7xl mb-2">🏆</div>
+                    <h2 id="result-title" class="text-3xl sm:text-4xl font-black text-amber-400">你獲得了勝利！</h2>
+                    <p id="result-subtitle" class="text-slate-400 text-sm mt-1">太神啦！簡直是行走的百科全書！</p>
+                </div>
+
+                <!-- 雙方最終分數對比 -->
+                <div class="grid grid-cols-2 gap-4 bg-slate-950/70 rounded-2xl p-4 border border-slate-800">
+                    <div class="space-y-1 border-r border-slate-800 pr-2">
+                        <div class="text-2xl">🧑‍🎓</div>
+                        <div id="res-p1-name" class="text-xs font-bold text-blue-300 truncate">玩家 1</div>
+                        <div id="res-p1-score" class="text-2xl sm:text-3xl font-black text-white">0</div>
+                        <div id="res-p1-stats" class="text-[11px] text-slate-400">答對 0 / 5 題</div>
+                    </div>
+                    <div class="space-y-1 pl-2">
+                        <div id="res-p2-avatar" class="text-2xl">🤖</div>
+                        <div id="res-p2-name" class="text-xs font-bold text-pink-300 truncate">電腦對手</div>
+                        <div id="res-p2-score" class="text-2xl sm:text-3xl font-black text-white">0</div>
+                        <div id="res-p2-stats" class="text-[11px] text-slate-400">答對 0 / 5 題</div>
+                    </div>
+                </div>
+
+                <!-- 操作按鈕 -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="restartCurrentMode()" class="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 font-black text-slate-950 btn-3d">
+                        🔄 再戰一局
+                    </button>
+                    <button onclick="goHome()" class="flex-1 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold text-white border border-slate-700 btn-3d">
+                        🏠 返回大廳
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 頁尾版權 -->
+    <footer class="text-center py-3 text-xs text-slate-500">
+        知識王對決 • 單檔免伺服器版 • 支援 GitHub Pages 免費託管
+    </footer>
+
+    <!-- 自訂題庫管理彈窗 (Modal) -->
+    <div id="modal-questions" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-pop">
+            <!-- Modal Header -->
+            <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-black text-white">📚 題庫管理與自訂出題</h3>
+                    <p class="text-xs text-slate-400">新增的題目會自動儲存在您的瀏覽器中</p>
+                </div>
+                <button onclick="closeQuestionModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">✕</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-5 overflow-y-auto space-y-5 flex-1">
+                <!-- 新增題目表單 -->
+                <form id="form-add-question" onsubmit="handleAddQuestion(event)" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-black text-amber-400">➕ 新增自訂題目</span>
+                        <input id="new-q-cat" type="text" placeholder="分類 (如: 校慶趣味)" value="自訂題庫" required class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white w-36">
+                    </div>
+                    <input id="new-q-text" type="text" placeholder="請輸入題目內容..." required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <input type="radio" name="correct-idx" value="0" checked class="accent-emerald-500 w-4 h-4">
+                            <input id="new-opt-0" type="text" placeholder="選項 A (勾選為正解)" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <input type="radio" name="correct-idx" value="1" class="accent-emerald-500 w-4 h-4">
+                            <input id="new-opt-1" type="text" placeholder="選項 B" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <input type="radio" name="correct-idx" value="2" class="accent-emerald-500 w-4 h-4">
+                            <input id="new-opt-2" type="text" placeholder="選項 C" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <input type="radio" name="correct-idx" value="3" class="accent-emerald-500 w-4 h-4">
+                            <input id="new-opt-3" type="text" placeholder="選項 D" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                    </div>
+                    <input id="new-q-exp" type="text" placeholder="選填：答案解析小知識..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                    
+                    <button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs sm:text-sm text-white transition">
+                        儲存並加入題庫
+                    </button>
+                </form>
+
+                <!-- 現有自訂題目列表 -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-slate-300">已自訂題目 (<span id="custom-count-label">0</span> 題) / 內建題庫 (<span id="builtin-count-label">0</span> 題)</h4>
+                        <button onclick="resetCustomQuestions()" class="text-xs text-rose-400 hover:underline">清除所有自訂題目</button>
+                    </div>
+                    <div id="custom-questions-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <!-- 動態列出自訂題目 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 遊戲邏輯與內建題庫腳本 -->
+    <script>
+        /**
+         * 1. 內建精選知識王題庫 (涵蓋台灣文化、科學、地理、歷史、生活常識、流行文化)
+         */
+        const BUILTIN_QUESTIONS = [
+            {
+                category: "台灣地理",
+                question: "台灣本島最南端的岬角是哪一個？",
+                options: ["鵝鑾鼻", "富貴角", "三貂角", "貓鼻頭"],
+                answer: 0,
+                explanation: "鵝鑾鼻位於屏東縣恆春鎮，是台灣本島最南端；最北端則是新北市石門區的富貴角。"
+            },
+            {
+                category: "自然科學",
+                question: "人體內最大的器官是哪一個？",
+                options: ["肝臟", "皮膚", "大腸", "肺臟"],
+                answer: 1,
+                explanation: "皮膚是人體面積最大、重量最重的器官，成年人皮膚總面積約 1.5 至 2 平方公尺。"
+            },
+            {
+                category: "台灣美食",
+                question: "台灣知名小吃「棺材板」最早發源於哪一個縣市？",
+                options: ["高雄市", "彰化縣", "台南市", "嘉義市"],
+                answer: 2,
+                explanation: "棺材板由台南沙卡里巴的許六一先生於 1940 年代發明，原名「雞肝板」。"
+            },
+            {
+                category: "宇宙天文",
+                question: "太陽系八大行星中，體積最大的是哪一顆？",
+                options: ["土星", "海王星", "木星", "天王星"],
+                answer: 2,
+                explanation: "木星是太陽系最大的行星，質量是其他七大行星總和的 2.5 倍！"
+            },
+            {
+                category: "生活常識",
+                question: "我們常喝的「珍珠奶茶」中的粉圓，主要是用什麼原料製成的？",
+                options: ["糯米粉", "樹薯粉 (木薯粉)", "太白粉", "在來米粉"],
+                answer: 1,
+                explanation: "粉圓由木薯根部提取的「樹薯粉」製成，因此煮熟後具有獨特的 Q 彈嚼勁。"
+            },
+            {
+                category: "世界地理",
+                question: "世界上國土面積最大的國家是哪一個？",
+                options: ["加拿大", "美國", "中國", "俄羅斯"],
+                answer: 3,
+                explanation: "俄羅斯橫跨歐亞大陸，國土面積超過 1,700 萬平方公里，為世界第一。"
+            },
+            {
+                category: "台灣文化",
+                question: "台灣高鐵目前營運路線中，最南端的車站是哪一站？",
+                options: ["高雄站", "左營站", "屏東站", "台南站"],
+                answer: 1,
+                explanation: "台灣高鐵北起南港站，南至高雄市的左營站，全長約 350 公里。"
+            },
+            {
+                category: "動物冷知識",
+                question: "章魚總共有幾顆心臟？",
+                options: ["1 顆", "2 顆", "3 顆", "8 顆"],
+                answer: 2,
+                explanation: "章魚有 3 顆心臟！兩顆負責將血液輸送到鰓，一顆負責將含氧血輸送到全身。"
+            },
+            {
+                category: "藝術人文",
+                question: "名畫《星夜》(The Starry Night) 是哪一位畫家的代表作？",
+                options: ["莫內", "畢卡索", "梵谷", "達文西"],
+                answer: 2,
+                explanation: "《星夜》是荷蘭後印象派畫家文森·梵谷於 1889 年在法國聖雷米療養院創作的名畫。"
+            },
+            {
+                category: "資訊科技",
+                question: "電腦鍵盤上常見的快捷鍵「Ctrl + Z」通常代表什麼功能？",
+                options: ["複製", "復原 (上一步)", "貼上", "全選"],
+                answer: 1,
+                explanation: "Ctrl + Z 是 Undo (復原上一步)，Ctrl + C 為複製，Ctrl + V 為貼上。"
+            },
+            {
+                category: "台灣自然",
+                question: "新台幣 1000 元鈔票背面的鳥類圖案是什麼？",
+                options: ["台灣藍鵲", "帝雉", "五色鳥", "黑面琵鷺"],
+                answer: 1,
+                explanation: "千元大鈔背面是台灣特有種「帝雉」與玉山主峰；台灣藍鵲則出現在以前的貨幣或郵票設計中。"
+            },
+            {
+                category: "化學常識",
+                question: "在標準大氣壓下，純水的沸點是攝氏幾度？",
+                options: ["80 度", "90 度", "100 度", "120 度"],
+                answer: 2,
+                explanation: "標準大氣壓下純水沸點為攝氏 100°C (華氏 212°F)；高山上因氣壓低，沸點會低於 100 度。"
+            },
+            {
+                category: "體育運動",
+                question: "現代奧林匹克運動會每幾年舉辦一次？",
+                options: ["2 年", "3 年", "4 年", "5 年"],
+                answer: 2,
+                explanation: "奧運每 4 年舉辦一次，目前夏季奧運與冬季奧運錯開每 2 年輪流登場。"
+            },
+            {
+                category: "文學歷史",
+                question: "古典名著《西遊記》中，唐三藏一行人前往「西天」取經，西天是指現今的哪裡？",
+                options: ["西藏", "印度", "新疆", "尼泊爾"],
+                answer: 1,
+                explanation: "歷史上玄奘法師西行前往的天竺（那爛陀寺）位於現今的印度。"
+            },
+            {
+                category: "地球科學",
+                question: "空氣中含量最高的氣體是哪一種？",
+                options: ["氧氣", "二氧化碳", "氮氣", "氬氣"],
+                answer: 2,
+                explanation: "地球大氣中約有 78% 是氮氣，氧氣約佔 21%，其餘為氬氣與二氧化碳等。"
+            }
+        ];
+
+        /**
+         * 2. Web Audio API 合成音效系統 (無需外部音檔)
+         */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playTone(freq, type, duration, vol = 0.15, delay = 0) {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + delay);
+                osc.stop(this.ctx.currentTime + delay + duration);
+            }
+            tick(urgent = false) {
+                this.playTone(urgent ? 880 : 520, 'sine', 0.08, 0.08);
+            }
+            correct() {
+                this.playTone(523.25, 'triangle', 0.12, 0.2, 0);     // C5
+                this.playTone(659.25, 'triangle', 0.12, 0.2, 0.08);  // E5
+                this.playTone(783.99, 'triangle', 0.25, 0.22, 0.16); // G5
+            }
+            wrong() {
+                this.playTone(220, 'sawtooth', 0.18, 0.16, 0);
+                this.playTone(185, 'sawtooth', 0.28, 0.16, 0.12);
+            }
+            win() {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((n, i) => this.playTone(n, 'triangle', 0.25, 0.2, i * 0.11));
+            }
+            lose() {
+                const notes = [392.00, 349.23, 329.63, 261.63];
+                notes.forEach((n, i) => this.playTone(n, 'sine', 0.3, 0.18, i * 0.15));
+            }
+        }
+        const sfx = new SoundFX();
+
+        /**
+         * 3. 遊戲狀態管理
+         */
+        const STORAGE_KEY = 'quiz_king_custom_questions_v1';
+        let customQuestions = [];
+        let gameState = {
+            mode: 'ai',          // 'ai' | 'pvp'
+            difficulty: 'normal',// 'easy' | 'normal' | 'hard'
+            totalRounds: 5,
+            currentRound: 0,
+            matchQuestions: [],
+            timeLeft: 10.0,
+            timerInterval: null,
+            aiTimeout: null,
+            roundEnded: false,
+            p1: { name: '知識挑戰者', score: 0, correctCount: 0, combo: 0, answered: false, choice: null },
+            p2: { name: '電腦對手', score: 0, correctCount: 0, combo: 0, answered: false, choice: null }
+        };
+
+        // 初始化載入
+        window.addEventListener('DOMContentLoaded', () => {
+            loadCustomQuestions();
+            updateQuestionCountBadge();
+        });
+
+        // 鍵盤快捷鍵支援 (雙人同機對戰超好玩)
+        window.addEventListener('keydown', (e) => {
+            if (document.getElementById('screen-battle').classList.contains('hidden')) return;
+            if (gameState.roundEnded) return;
+
+            const key = e.key;
+            if (gameState.mode === 'ai') {
+                if (['1', '2', '3', '4'].includes(key)) {
+                    handleAnswer(1, parseInt(key) - 1);
+                }
+            } else if (gameState.mode === 'pvp') {
+                // P1: 1, 2, 3, 4
+                if (['1', '2', '3', '4'].includes(key)) {
+                    handleAnswer(1, parseInt(key) - 1);
+                }
+                // P2: 7, 8, 9, 0
+                const p2Map = { '7': 0, '8': 1, '9': 2, '0': 3 };
+                if (key in p2Map) {
+                    handleAnswer(2, p2Map[key]);
+                }
+            }
+        });
+
+        /**
+         * 4. UI 切換與設定函式
+         */
+        function toggleSound() {
+            sfx.muted = !sfx.muted;
+            document.getElementById('btn-sound').textContent = sfx.muted ? '🔇' : '🔊';
+        }
+
+        function setDifficulty(diff) {
+            gameState.difficulty = diff;
+            ['easy', 'normal', 'hard'].forEach(d => {
+                const btn = document.getElementById(`diff-${d}`);
+                if (d === diff) {
+                    btn.className = 'diff-btn py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow transition';
+                } else {
+                    btn.className = 'diff-btn py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition';
+                }
+            });
+        }
+
+        function toggleP2Input() {
+            const row = document.getElementById('p2-name-row');
+            row.classList.toggle('hidden');
+            row.classList.toggle('flex');
+        }
+
+        function showScreen(screenId) {
+            ['screen-lobby', 'screen-battle', 'screen-result'].forEach(id => {
+                const el = document.getElementById(id);
+                if (id === screenId) {
+                    el.classList.remove('hidden');
+                    if (id === 'screen-battle') el.classList.add('flex');
+                } else {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                }
+            });
+        }
+
+        function goHome() {
+            clearTimers();
+            showScreen('screen-lobby');
+        }
+
+        function clearTimers() {
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            if (gameState.aiTimeout) clearTimeout(gameState.aiTimeout);
+        }
+
+        /**
+         * 5. 遊戲核心流程
+         */
+        function startGame(mode) {
+            sfx.init();
+            gameState.mode = mode;
+            gameState.currentRound = 0;
+
+            const p1Name = document.getElementById('input-p1-name').value.trim() || '知識挑戰者';
+            let p2Name = '電腦對手';
+            let p2Avatar = '🤖';
+
+            if (mode === 'ai') {
+                const diffLabels = {
+                    easy: '🌱 初心者機器人',
+                    normal: '⚔️ 知識王 AI',
+                    hard: '🔥 百科大魔王'
+                };
+                p2Name = diffLabels[gameState.difficulty];
+                p2Avatar = gameState.difficulty === 'hard' ? '😈' : '🤖';
+            } else {
+                p2Name = document.getElementById('input-p2-name').value.trim() || '挑戰者二號';
+                p2Avatar = '🧑‍🚀';
+            }
+
+            gameState.p1 = { name: p1Name, score: 0, correctCount: 0, combo: 0, answered: false, choice: null };
+            gameState.p2 = { name: p2Name, score: 0, correctCount: 0, combo: 0, answered: false, choice: null };
+
+            // 更新對戰頂部資訊
+            document.getElementById('p1-display-name').textContent = p1Name;
+            document.getElementById('p2-display-name').textContent = p2Name;
+            document.getElementById('p2-avatar').textContent = p2Avatar;
+            document.getElementById('pvp-p1-label').textContent = p1Name;
+            document.getElementById('pvp-p2-label').textContent = p2Name;
+
+            // 合併內建與自訂題庫並隨機抽出 5 題
+            const pool = [...BUILTIN_QUESTIONS, ...customQuestions];
+            gameState.matchQuestions = shuffleArray(pool).slice(0, gameState.totalRounds);
+
+            updateScoreUI();
+            showScreen('screen-battle');
+            nextRound();
+        }
+
+        function restartCurrentMode() {
+            startGame(gameState.mode);
+        }
+
+        function nextRound() {
+            clearTimers();
+            gameState.currentRound++;
+
+            if (gameState.currentRound > gameState.totalRounds) {
+                endGame();
+                return;
+            }
+
+            gameState.roundEnded = false;
+            gameState.timeLeft = 10.0;
+            gameState.p1.answered = false;
+            gameState.p1.choice = null;
+            gameState.p2.answered = false;
+            gameState.p2.choice = null;
+
+            const q = gameState.matchQuestions[gameState.currentRound - 1];
+            const isFinalRound = gameState.currentRound === gameState.totalRounds;
+
+            // UI 更新
+            document.getElementById('round-badge').textContent = `第 ${gameState.currentRound} / ${gameState.totalRounds} 題`;
+            document.getElementById('question-category').textContent = q.category || '綜合知識';
+            document.getElementById('question-text').textContent = q.question;
+            document.getElementById('explanation-box').classList.add('hidden');
+
+            const doubleBanner = document.getElementById('double-points-banner');
+            if (isFinalRound) {
+                doubleBanner.classList.remove('hidden');
+            } else {
+                doubleBanner.classList.add('hidden');
+            }
+
+            renderOptions(q);
+            startCountdown();
+
+            // 若為單人對戰電腦，排程 AI 作答
+            if (gameState.mode === 'ai') {
+                scheduleAI(q);
+            }
+        }
+
+        function renderOptions(q) {
+            const singleContainer = document.getElementById('options-single');
+            const pvpContainer = document.getElementById('options-pvp');
+            const labels = ['A', 'B', 'C', 'D'];
+
+            if (gameState.mode === 'ai') {
+                singleContainer.classList.remove('hidden');
+                pvpContainer.classList.add('hidden');
+                pvpContainer.classList.remove('grid');
+
+                singleContainer.innerHTML = q.options.map((opt, idx) => `
+                    <button id="opt-single-${idx}" onclick="handleAnswer(1, ${idx})"
+                        class="w-full text-left p-4 rounded-2xl bg-slate-800/90 hover:bg-slate-700/90 border-2 border-slate-700 flex items-center justify-between gap-3 btn-3d animate-pop"
+                        style="animation-delay: ${idx * 0.05}s">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-black flex items-center justify-center text-sm shrink-0">
+                                ${labels[idx]}
+                            </span>
+                            <span class="font-bold text-sm sm:text-base text-white">${escapeHTML(opt)}</span>
+                        </div>
+                        <div id="opt-badges-${idx}" class="flex items-center gap-1 text-lg"></div>
+                    </button>
+                `).join('');
+            } else {
+                singleContainer.classList.add('hidden');
+                pvpContainer.classList.remove('hidden');
+                pvpContainer.classList.add('grid');
+
+                const p1Btns = document.getElementById('pvp-p1-buttons');
+                const p2Btns = document.getElementById('pvp-p2-buttons');
+
+                p1Btns.innerHTML = q.options.map((opt, idx) => `
+                    <button id="opt-p1-${idx}" onclick="handleAnswer(1, ${idx})"
+                        class="p-3 rounded-xl bg-slate-800 hover:bg-blue-900/60 border border-slate-700 text-left flex items-center gap-2 btn-3d">
+                        <span class="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-300 font-black text-xs flex items-center justify-center shrink-0">${labels[idx]}</span>
+                        <span class="font-bold text-xs sm:text-sm text-white line-clamp-2">${escapeHTML(opt)}</span>
+                    </button>
+                `).join('');
+
+                p2Btns.innerHTML = q.options.map((opt, idx) => `
+                    <button id="opt-p2-${idx}" onclick="handleAnswer(2, ${idx})"
+                        class="p-3 rounded-xl bg-slate-800 hover:bg-pink-900/60 border border-slate-700 text-left flex items-center gap-2 btn-3d">
+                        <span class="w-6 h-6 rounded-lg bg-pink-500/20 text-pink-300 font-black text-xs flex items-center justify-center shrink-0">${labels[idx]}</span>
+                        <span class="font-bold text-xs sm:text-sm text-white line-clamp-2">${escapeHTML(opt)}</span>
+                    </button>
+                `).join('');
+            }
+        }
+
+        function startCountdown() {
+            const timerText = document.getElementById('timer-text');
+            const timerRing = document.getElementById('timer-ring');
+            let lastWholeSec = 10;
+
+            timerText.textContent = '10';
+            timerRing.style.strokeDasharray = '100, 100';
+            timerRing.classList.remove('text-rose-500');
+            timerRing.classList.add('text-amber-400');
+
+            gameState.timerInterval = setInterval(() => {
+                gameState.timeLeft = Math.max(0, gameState.timeLeft - 0.1);
+                const wholeSec = Math.ceil(gameState.timeLeft);
+                timerText.textContent = wholeSec;
+
+                const pct = (gameState.timeLeft / 10.0) * 100;
+                timerRing.style.strokeDasharray = `${pct}, 100`;
+
+                if (wholeSec <= 3 && wholeSec > 0) {
+                    timerRing.classList.remove('text-amber-400');
+                    timerRing.classList.add('text-rose-500');
+                }
+
+                if (wholeSec < lastWholeSec && wholeSec > 0) {
+                    lastWholeSec = wholeSec;
+                    sfx.tick(wholeSec <= 3);
+                }
+
+                if (gameState.timeLeft <= 0) {
+                    clearTimers();
+                    revealRoundResults();
+                }
+            }, 100);
+        }
+
+        function scheduleAI(q) {
+            // 依據難度決定 AI 反應時間與答對率
+            const config = {
+                easy:   { minDelay: 3500, maxDelay: 7500, accuracy: 0.45 },
+                normal: { minDelay: 2000, maxDelay: 5200, accuracy: 0.72 },
+                hard:   { minDelay: 1100, maxDelay: 3200, accuracy: 0.90 }
+            }[gameState.difficulty];
+
+            const delay = Math.floor(Math.random() * (config.maxDelay - config.minDelay)) + config.minDelay;
+            const willBeCorrect = Math.random() < config.accuracy;
+
+            let chosenIdx = q.answer;
+            if (!willBeCorrect) {
+                const wrongIndices = [0, 1, 2, 3].filter(i => i !== q.answer);
+                chosenIdx = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+            }
+
+            gameState.aiTimeout = setTimeout(() => {
+                if (!gameState.roundEnded && !gameState.p2.answered) {
+                    handleAnswer(2, chosenIdx);
+                }
+            }, delay);
+        }
+
+        function handleAnswer(playerNum, optionIdx) {
+            if (gameState.roundEnded) return;
+
+            const player = playerNum === 1 ? gameState.p1 : gameState.p2;
+            if (player.answered) return; // 防止重複點擊
+
+            player.answered = true;
+            player.choice = optionIdx;
+
+            const q = gameState.matchQuestions[gameState.currentRound - 1];
+            const isCorrect = optionIdx === q.answer;
+            const isFinal = gameState.currentRound === gameState.totalRounds;
+            const multiplier = isFinal ? 2 : 1;
+
+            if (isCorrect) {
+                // 基礎 100 分 + 速度加成最高 100 分 (最後一題加倍)
+                const speedBonus = Math.round((gameState.timeLeft / 10.0) * 100);
+                const points = (100 + speedBonus) * multiplier;
+                player.score += points;
+                player.correctCount++;
+                player.combo++;
+
+                showScorePopup(playerNum, `+${points}`);
+                if (playerNum === 1 || gameState.mode === 'pvp') {
+                    sfx.correct();
+                }
+            } else {
+                player.combo = 0;
+                if (playerNum === 1 || gameState.mode === 'pvp') {
+                    sfx.wrong();
+                }
+            }
+
+            // 視覺鎖定提示（不先洩漏正解給對手，直到雙方都作答或時間到）
+            markPlayerSelection(playerNum, optionIdx, isCorrect);
+            updateScoreUI();
+
+            // 雙方皆作答完畢則提早揭曉結果
+            if (gameState.p1.answered && gameState.p2.answered) {
+                clearTimers();
+                setTimeout(() => revealRoundResults(), 350);
+            }
+        }
+
+        function markPlayerSelection(playerNum, optionIdx, isCorrect) {
+            if (gameState.mode === 'ai') {
+                if (playerNum === 1) {
+                    // 鎖定玩家 1 所有按鈕
+                    for (let i = 0; i < 4; i++) {
+                        const btn = document.getElementById(`opt-single-${i}`);
+                        btn.disabled = true;
+                        if (i === optionIdx) {
+                            btn.classList.remove('border-slate-700');
+                            btn.classList.add(isCorrect ? 'border-emerald-400' : 'border-rose-500', isCorrect ? 'bg-emerald-950/60' : 'bg-rose-950/60');
+                            if (!isCorrect) btn.classList.add('animate-shake');
+                        }
+                    }
+                }
+            } else {
+                // 雙人模式各自鎖定該玩家按鈕區
+                for (let i = 0; i < 4; i++) {
+                    const btn = document.getElementById(`opt-p${playerNum}-${i}`);
+                    btn.disabled = true;
+                    if (i === optionIdx) {
+                        btn.classList.add('ring-2', playerNum === 1 ? 'ring-blue-400' : 'ring-pink-400', 'bg-slate-700');
+                    } else {
+                        btn.classList.add('opacity-50');
+                    }
+                }
+            }
+        }
+
+        function revealRoundResults() {
+            if (gameState.roundEnded) return;
+            gameState.roundEnded = true;
+
+            const q = gameState.matchQuestions[gameState.currentRound - 1];
+
+            // 若有玩家未作答則連勝歸零
+            if (!gameState.p1.answered) gameState.p1.combo = 0;
+            if (!gameState.p2.answered) gameState.p2.combo = 0;
+            updateScoreUI();
+
+            if (gameState.mode === 'ai') {
+                for (let i = 0; i < 4; i++) {
+                    const btn = document.getElementById(`opt-single-${i}`);
+                    const badges = document.getElementById(`opt-badges-${i}`);
+                    btn.disabled = true;
+
+                    if (i === q.answer) {
+                        btn.classList.remove('border-slate-700', 'bg-slate-800/90');
+                        btn.classList.add('border-emerald-400', 'bg-emerald-900/70');
+                    }
+                    let badgeHTML = '';
+                    if (gameState.p1.choice === i) badgeHTML += `<span title="${gameState.p1.name}">🧑‍🎓</span>`;
+                    if (gameState.p2.choice === i) badgeHTML += `<span title="${gameState.p2.name}">🤖</span>`;
+                    badges.innerHTML = badgeHTML;
+                }
+            } else {
+                // 雙人模式揭曉雙方按鈕正誤
+                [1, 2].forEach(pNum => {
+                    const pState = pNum === 1 ? gameState.p1 : gameState.p2;
+                    for (let i = 0; i < 4; i++) {
+                        const btn = document.getElementById(`opt-p${pNum}-${i}`);
+                        btn.disabled = true;
+                        btn.classList.remove('opacity-50');
+                        if (i === q.answer) {
+                            btn.classList.add('bg-emerald-700', 'border-emerald-400');
+                        } else if (pState.choice === i) {
+                            btn.classList.add('bg-rose-800', 'border-rose-400');
+                        }
+                    }
+                });
+            }
+
+            // 顯示知識解析
+            if (q.explanation) {
+                const expBox = document.getElementById('explanation-box');
+                document.getElementById('explanation-text').textContent = `💡 正解【${q.options[q.answer]}】：${q.explanation}`;
+                expBox.classList.remove('hidden');
+            }
+
+            // 2.6 秒後自動進入下一題
+            setTimeout(() => {
+                nextRound();
+            }, 2600);
+        }
+
+        function showScorePopup(playerNum, text) {
+            const container = document.getElementById(`p${playerNum}-popup-container`);
+            const el = document.createElement('div');
+            el.className = 'score-popup font-black text-amber-300 text-sm sm:text-base drop-shadow';
+            el.textContent = text;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 950);
+        }
+
+        function updateScoreUI() {
+            document.getElementById('p1-score').textContent = gameState.p1.score;
+            document.getElementById('p2-score').textContent = gameState.p2.score;
+
+            // 連勝徽章
+            const c1 = document.getElementById('p1-combo');
+            if (gameState.p1.combo >= 2) {
+                c1.textContent = `🔥 ${gameState.p1.combo}連勝`;
+                c1.classList.remove('hidden');
+            } else {
+                c1.classList.add('hidden');
+            }
+
+            const c2 = document.getElementById('p2-combo');
+            if (gameState.p2.combo >= 2) {
+                c2.textContent = `🔥 ${gameState.p2.combo}連勝`;
+                c2.classList.remove('hidden');
+            } else {
+                c2.classList.add('hidden');
+            }
+
+            // 進度條比例
+            const total = gameState.p1.score + gameState.p2.score;
+            let p1Pct = 50;
+            if (total > 0) {
+                p1Pct = Math.min(90, Math.max(10, Math.round((gameState.p1.score / total) * 100)));
+            }
+            document.getElementById('bar-p1').style.width = `${p1Pct}%`;
+            document.getElementById('bar-p2').style.width = `${100 - p1Pct}%`;
+        }
+
+        function endGame() {
+            clearTimers();
+            showScreen('screen-result');
+
+            const p1 = gameState.p1;
+            const p2 = gameState.p2;
+
+            document.getElementById('res-p1-name').textContent = p1.name;
+            document.getElementById('res-p1-score').textContent = p1.score;
+            document.getElementById('res-p1-stats').textContent = `答對 ${p1.correctCount} / ${gameState.totalRounds} 題`;
+
+            document.getElementById('res-p2-name').textContent = p2.name;
+            document.getElementById('res-p2-score').textContent = p2.score;
+            document.getElementById('res-p2-stats').textContent = `答對 ${p2.correctCount} / ${gameState.totalRounds} 題`;
+            document.getElementById('res-p2-avatar').textContent = gameState.mode === 'ai' ? '🤖' : '🧑‍🚀';
+
+            const trophy = document.getElementById('result-trophy');
+            const title = document.getElementById('result-title');
+            const subtitle = document.getElementById('result-subtitle');
+
+            if (p1.score > p2.score) {
+                trophy.textContent = '🏆';
+                title.textContent = `${p1.name} 獲勝！`;
+                title.className = 'text-3xl sm:text-4xl font-black text-amber-400';
+                subtitle.textContent = '太強了！知識量與反應速度都無人能敵！';
+                sfx.win();
+            } else if (p2.score > p1.score) {
+                trophy.textContent = gameState.mode === 'ai' ? '💥' : '🏆';
+                title.textContent = gameState.mode === 'ai' ? '惜敗給電腦對手！' : `${p2.name} 獲勝！`;
+                title.className = gameState.mode === 'ai' ? 'text-3xl sm:text-4xl font-black text-rose-400' : 'text-3xl sm:text-4xl font-black text-pink-400';
+                subtitle.textContent = gameState.mode === 'ai' ? '別氣餒，再挑戰一次把面子贏回來！' : '精彩的腦力對決，恭喜奪下知識王寶座！';
+                gameState.mode === 'ai' ? sfx.lose() : sfx.win();
+            } else {
+                trophy.textContent = '🤝';
+                title.textContent = '勢均力敵 • 平手！';
+                title.className = 'text-3xl sm:text-4xl font-black text-cyan-300';
+                subtitle.textContent = '兩位實力不分軒輊，再來一場延長賽吧！';
+                sfx.win();
+            }
+        }
+
+        /**
+         * 6. 自訂題庫管理 (LocalStorage)
+         */
+        function loadCustomQuestions() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                customQuestions = raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                customQuestions = [];
+            }
+        }
+
+        function saveCustomQuestions() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(customQuestions));
+            } catch (e) {
+                console.warn('無法儲存至 localStorage');
+            }
+            updateQuestionCountBadge();
+            renderCustomQuestionsList();
+        }
+
+        function updateQuestionCountBadge() {
+            const total = BUILTIN_QUESTIONS.length + customQuestions.length;
+            document.getElementById('badge-q-count').textContent = total;
+            document.getElementById('custom-count-label').textContent = customQuestions.length;
+            document.getElementById('builtin-count-label').textContent = BUILTIN_QUESTIONS.length;
+        }
+
+        function openQuestionModal() {
+            renderCustomQuestionsList();
+            document.getElementById('modal-questions').classList.remove('hidden');
+        }
+
+        function closeQuestionModal() {
+            document.getElementById('modal-questions').classList.add('hidden');
+        }
+
+        function handleAddQuestion(e) {
+            e.preventDefault();
+            const cat = document.getElementById('new-q-cat').value.trim() || '自訂題庫';
+            const text = document.getElementById('new-q-text').value.trim();
+            const options = [
+                document.getElementById('new-opt-0').value.trim(),
+                document.getElementById('new-opt-1').value.trim(),
+                document.getElementById('new-opt-2').value.trim(),
+                document.getElementById('new-opt-3').value.trim()
+            ];
+            const answer = parseInt(document.querySelector('input[name="correct-idx"]:checked').value);
+            const explanation = document.getElementById('new-q-exp').value.trim();
+
+            if (!text || options.some(o => !o)) return;
+
+            customQuestions.unshift({
+                category: cat,
+                question: text,
+                options,
+                answer,
+                explanation
+            });
+
+            saveCustomQuestions();
+            document.getElementById('form-add-question').reset();
+            document.getElementById('new-q-cat').value = cat;
+            sfx.correct();
+        }
+
+        function deleteCustomQuestion(idx) {
+            customQuestions.splice(idx, 1);
+            saveCustomQuestions();
+        }
+
+        function resetCustomQuestions() {
+            customQuestions = [];
+            saveCustomQuestions();
+        }
+
+        function renderCustomQuestionsList() {
+            const container = document.getElementById('custom-questions-list');
+            if (customQuestions.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">目前尚未新增自訂題目，對戰將使用內建精選題庫</div>`;
+                return;
+            }
+            container.innerHTML = customQuestions.map((q, idx) => `
+                <div class="bg-slate-800/70 border border-slate-700 rounded-xl p-3 flex items-start justify-between gap-3">
+                    <div class="space-y-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">${escapeHTML(q.category)}</span>
+                            <span class="text-xs font-bold text-white truncate">${escapeHTML(q.question)}</span>
+                        </div>
+                        <div class="text-[11px] text-emerald-400">正解：${escapeHTML(q.options[q.answer])}</div>
+                    </div>
+                    <button onclick="deleteCustomQuestion(${idx})" class="text-xs px-2 py-1 rounded bg-rose-500/20 text-rose-300 hover:bg-rose-500/40 shrink-0">刪除</button>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * 工具函式
+         */
+        function shuffleArray(arr) {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        function escapeHTML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
